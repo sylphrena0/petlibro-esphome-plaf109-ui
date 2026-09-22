@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Download build
+        uses: actions/download-artifact@v8
+        with:
+          name: build
+          path: build
+
+      - name: Determine version
+        id: version
+        uses: PaulHatch/semantic-version@v6.0.4
+        with:
+          tag_prefix: v
+          major_pattern: /BREAKING CHANGE:/
+          minor_pattern: /^feat(\(.+\))?!?:/
+          search_commit_body: true
+
+      - name: Build changelog
+        id: changelog
+        uses: ardalanamini/auto-changelog@v5
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          release-name: ${{ steps.version.outputs.version_tag }}
+          default-commit-type: Other Changes
+          commit-types: |
+            feat: Features
+            fix: Bug Fixes
+            perf: Performance Improvements
+            revert: Reverts
+            refactor: Refactoring
+            docs: Documentation
+            style: Code Style
+            test: Tests
+            build: Build System & Dependencies
+            ci: Continuous Integration
+            chore: Chores
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.version.outputs.version_tag }}
+          name: ${{ steps.version.outputs.version_tag }}
+          target_commitish: ${{ github.sha }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          files: |
+            build/app.js
+            build/style.css
+          fail_on_unmatched_files: true
