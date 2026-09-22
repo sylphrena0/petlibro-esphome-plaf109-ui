@@ -1,6 +1,6 @@
 # On-Device ESPHome Web Control for PetLibro PLAF109
 
-A mobile-first remote for the [PetLibro PLAF109](https://github.com/sylphrena0/petlibro-esphome/tree/main/plaf109) (Polar Wet Food Feeder) running ESPHome. Serve from the device with [esphome-custom-web-server](https://github.com/sylphrena0/esphome-custom-web-server). Controls are implemented through ESPHome's `web_server` API (`/events` and the REST endpoints).
+A mobile-first remote for the [PetLibro PLAF109](https://github.com/sylphrena0/petlibro-esphome/tree/main/plaf109) (Polar Wet Food Feeder) running ESPHome. Serve from the device with [esphome-custom-web-server](https://github.com/sylphrena0/esphome-custom-web-server). Controls are implemented through ESPHome's `web_server` API (`/events` and the REST endpoints). This is built for and tightly coupled with [sylphrena0/petlibro-esphome/plaf109](https://github.com/sylphrena0/petlibro-esphome/tree/dev/plaf109).
 
 This is a ESPHome only solution to take control of your PetLibro Wet Feeder without need for a HAOS server and with UX better than the factory app (IMO). You might be better off with a dashboard in HAOS if you have that available. Don't port forward this application without SSL and authentication.
 
