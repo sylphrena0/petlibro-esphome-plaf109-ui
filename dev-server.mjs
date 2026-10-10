@@ -3,10 +3,11 @@
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { ENTITIES, entityId } from "./src/entities.ts";
 
 const PORT = Number(process.env.PORT) || 8081;
-const build = new URL("./build/", import.meta.url).pathname;
+const build = fileURLToPath(new URL("./build/", import.meta.url));
 
 // In-memory mock of everything in src/entities.ts
 const state = new Map();
