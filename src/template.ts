@@ -100,12 +100,36 @@ function switchToggle(checked: boolean, onChange: (e: Event) => void): TemplateR
   `;
 }
 
-function numberStepper(remote: PlaRemote, entity: Entity, suffix: string, zeroText?: string): TemplateResult {
+interface NumberStepperOptions {
+  zeroText?: string; // shown instead of 0, for numbers where 0 means "disabled"
+  editable?: boolean; // lets the value be typed in directly, not just stepped
+  label?: string; // accessible name for the typed input, defaults to the entity name
+}
+
+function numberStepper(remote: PlaRemote, entity: Entity, suffix: string, { zeroText, editable = false, label }: NumberStepperOptions = {}): TemplateResult {
   const stepBtn = "w-7.5 h-7.5 rounded-full border-0 bg-tray text-accent-dark text-base font-extrabold cursor-pointer active:scale-90";
+  const text = remote.numText(entity, suffix, zeroText);
+  // leave the input alone while typing or saving so a state event doesn't overwrite it
+  const inputValue = remote.isEditingNumber(entity) ? noChange : live(text);
+  const value = editable
+    ? html`<input
+        type="text"
+        inputmode="decimal"
+        enterkeyhint="done"
+        autocomplete="off"
+        aria-label=${label ?? entity.name}
+        class="w-18 rounded-sm border-0 bg-black/20 px-1 py-1 text-center text-[15px] font-extrabold text-inherit font-[inherit] cursor-text outline-none focus:bg-tray focus:ring-2 focus:ring-accent"
+        .value=${inputValue}
+        @focus=${(e: Event) => remote.onNumberFocus(entity, e)}
+        @keydown=${(e: KeyboardEvent) => remote.onNumberKeydown(entity, e)}
+        @change=${(e: Event) => remote.onNumberChange(entity, suffix, zeroText, e)}
+        @blur=${(e: Event) => remote.onNumberBlur(entity, suffix, zeroText, e)}
+      />`
+    : html`<span class="min-w-11 text-center font-extrabold text-[15px]">${text}</span>`;
   return html`
     <div class="flex items-center gap-2.5">
       <button class="${stepBtn}" @click=${() => remote.stepNumberEntity(entity, -1)}>−</button>
-      <span class="min-w-11 text-center font-extrabold text-[15px]">${remote.numText(entity, suffix, zeroText)}</span>
+      ${value}
       <button class="${stepBtn}" @click=${() => remote.stepNumberEntity(entity, 1)}>+</button>
     </div>
   `;
@@ -293,22 +317,22 @@ export function renderTemplate(remote: PlaRemote): TemplateResult {
         remote,
         arrivalTimeoutIcon,
         "Arrival Timeout",
-        "How long to wait for your pet once a meal is served. If they don't show up, the lid will close, and the plate won't rotate.",
-        numberStepper(remote, ENTITIES.arrivalTimeout, " min"),
+        "How long to wait for your pet once a meal is served. If they don't show up, the lid will close, and the plate won't rotate. Turn off to keep the lid open until your pet arrives.",
+        numberStepper(remote, ENTITIES.arrivalTimeout, " min", { zeroText: "Off", editable: true, label: "Arrival Timeout" }),
       )}
       ${settingRow(
         remote,
         feedingTimeIcon,
         "Feeding Time",
         "Once your pet arrives, how long to keep the lid open.",
-        numberStepper(remote, ENTITIES.minimumFeedingTime, " min"),
+        numberStepper(remote, ENTITIES.minimumFeedingTime, " min", { editable: true, label: "Feeding Time" }),
       )}
       ${settingRow(
         remote,
         chimeIntervalIcon,
         "Chime Interval",
         "While waiting for your pet, chime again every this many seconds until they arrive. Turn off to chime only once per meal.",
-        numberStepper(remote, ENTITIES.chimeInterval, " s", "Off"),
+        numberStepper(remote, ENTITIES.chimeInterval, " s", { zeroText: "Off", editable: true, label: "Chime Interval" }),
       )}
       ${settingRow(
         remote,
