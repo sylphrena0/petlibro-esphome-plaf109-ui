@@ -74,6 +74,13 @@ function decimalsOf(n: number): number {
   return dot === -1 ? 0 : s.length - dot - 1;
 }
 
+// Formatted with as many decimals as the number entity's step, so step: 0.5 shows "40.5"
+// `zeroText` replaces the whole text at 0, for numbers where 0 means "disabled"
+function formatNumber(n: number, step: number, suffix: string, zeroText?: string): string {
+  if (n === 0 && zeroText !== undefined) return zeroText;
+  return (Number.isFinite(n) ? n.toFixed(decimalsOf(step)) : "--") + suffix;
+}
+
 interface NextMeal {
   index: number | null; // null when no meal is coming up
   label: string;
@@ -82,6 +89,9 @@ interface NextMeal {
 
 export class PlaRemote extends LitElement {
   private editingMealTime: Record<number, boolean> = {};
+  // entity ids of number inputs being typed in, or whose typed value is still being sent
+  private editingNumbers = new Set<string>();
+  private savingNumbers = new Set<string>();
   private eventSource?: EventSource;
   private nextMealTimer?: ReturnType<typeof setInterval>;
   private uptimeTimer?: ReturnType<typeof setInterval>;
@@ -119,6 +129,8 @@ export class PlaRemote extends LitElement {
     this.errorText = null;
     this.setConnected(false);
     this.editingMealTime = {};
+    this.editingNumbers.clear();
+    this.savingNumbers.clear();
   }
 
   override render(): TemplateResult {
@@ -150,12 +162,8 @@ export class PlaRemote extends LitElement {
     return text && text !== "NA" ? text : fallback;
   }
 
-  // Formatted with as many decimals as the number entity's step, so step: 0.5 shows "40.5"
-  // `zeroText` replaces the whole text at 0, for numbers where 0 means "disabled"
   numText(entity: Entity, suffix: string, zeroText?: string): string {
-    const n = this.num(entity);
-    if (n === 0 && zeroText !== undefined) return zeroText;
-    return (Number.isFinite(n) ? n.toFixed(decimalsOf(this.stepOf(entity))) : "--") + suffix;
+    return formatNumber(this.num(entity), this.stepOf(entity), suffix, zeroText);
   }
 
   get onBattery(): boolean {
@@ -221,6 +229,37 @@ export class PlaRemote extends LitElement {
   private stepOf(entity: Entity): number {
     const step = Number(this.entityState(entity)?.step);
     return step > 0 ? step : 1;
+  }
+
+  private rangeOf(entity: Entity): { min: number; max: number; step: number } {
+    const cur = this.entityState(entity);
+    return {
+      min: cur?.min_value !== undefined ? Number(cur.min_value) : -Infinity,
+      max: cur?.max_value !== undefined ? Number(cur.max_value) : Infinity,
+      step: this.stepOf(entity),
+    };
+  }
+
+  // Accepts "10", "10 min", or `zeroText` ("Off") for 0, within the entity's min, max and step
+  private parseNumberInput(entity: Entity, raw: string, suffix: string, zeroText?: string): { value: number } | { error: string } {
+    const text = raw.trim().toLowerCase();
+    const unit = suffix.trim().toLowerCase();
+    let value = Number.NaN;
+    if (zeroText !== undefined && text === zeroText.toLowerCase()) {
+      value = 0;
+    } else {
+      const numberText = unit && text.endsWith(unit) ? text.slice(0, -unit.length).trim() : text;
+      if (numberText !== "") value = Number(numberText);
+    }
+    if (!Number.isFinite(value)) return { error: "Enter a number" };
+
+    const { min, max, step } = this.rangeOf(entity);
+    if (value < min || value > max) return { error: `Must be between ${min} and ${max}${suffix}` };
+    const steps = (value - (Number.isFinite(min) ? min : 0)) / step;
+    if (Math.abs(steps - Math.round(steps)) > 1e-9) {
+      return { error: step === 1 ? "Must be a whole number" : `Must be a multiple of ${step}${suffix}` };
+    }
+    return { value };
   }
 
   // Resolves to whether the device accepted the request
@@ -342,14 +381,57 @@ export class PlaRemote extends LitElement {
   }
 
   stepNumberEntity(entity: Entity, direction: 1 | -1): void {
-    const cur = this.entityState(entity);
     const curVal = this.num(entity);
     if (!Number.isFinite(curVal)) return;
-    const step = this.stepOf(entity);
-    const min = cur?.min_value !== undefined ? Number(cur.min_value) : -Infinity;
-    const max = cur?.max_value !== undefined ? Number(cur.max_value) : Infinity;
+    const { min, max, step } = this.rangeOf(entity);
     const next = Math.min(max, Math.max(min, curVal + direction * step));
     void this.post(entity, "set", "value=" + next.toFixed(decimalsOf(step)));
+  }
+
+  isEditingNumber(entity: Entity): boolean {
+    const id = entityId(entity);
+    return this.editingNumbers.has(id) || this.savingNumbers.has(id);
+  }
+
+  // Swaps the display text ("Off", "10 min") for the bare number while typing
+  onNumberFocus(entity: Entity, e: Event): void {
+    const input = e.target as HTMLInputElement;
+    this.editingNumbers.add(entityId(entity));
+    const n = this.num(entity);
+    input.value = Number.isFinite(n) ? n.toFixed(decimalsOf(this.stepOf(entity))) : "";
+    input.select();
+  }
+
+  onNumberKeydown(entity: Entity, e: KeyboardEvent): void {
+    const input = e.target as HTMLInputElement;
+    if (e.key === "Escape") this.editingNumbers.delete(entityId(entity)); // makes the change handler skip it
+    if (e.key === "Enter" || e.key === "Escape") input.blur();
+  }
+
+  async onNumberChange(entity: Entity, suffix: string, zeroText: string | undefined, e: Event): Promise<void> {
+    const input = e.target as HTMLInputElement;
+    const id = entityId(entity);
+    if (!this.editingNumbers.has(id) || input.value.trim() === "") return; // blur puts the current value back
+    const result = this.parseNumberInput(entity, input.value, suffix, zeroText);
+    if ("error" in result) {
+      this.showError(result.error);
+      return;
+    }
+    if (result.value === this.num(entity)) return;
+
+    // keep showing the typed value until the device's state event replaces it
+    const step = this.stepOf(entity);
+    this.savingNumbers.add(id);
+    input.value = formatNumber(result.value, step, suffix, zeroText);
+    const ok = await this.post(entity, "set", "value=" + result.value.toFixed(decimalsOf(step)));
+    this.savingNumbers.delete(id);
+    if (!ok) input.value = this.numText(entity, suffix, zeroText);
+  }
+
+  onNumberBlur(entity: Entity, suffix: string, zeroText: string | undefined, e: Event): void {
+    const id = entityId(entity);
+    this.editingNumbers.delete(id);
+    if (!this.savingNumbers.has(id)) (e.target as HTMLInputElement).value = this.numText(entity, suffix, zeroText);
   }
 
   onMealTimeFocus(idx: number): void {
