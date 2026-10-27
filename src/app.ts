@@ -74,8 +74,10 @@ function decimalsOf(n: number): number {
   return dot === -1 ? 0 : s.length - dot - 1;
 }
 
-// Formatted with as many decimals as the number entity's step, so step: 0.5 shows "40.5"
-// `zeroText` replaces the whole text at 0, for numbers where 0 means "disabled"
+/**
+ * Formats with as many decimals as `step`, so step 0.5 shows "40.5"
+ * @param zeroText replaces the whole text at 0, for numbers where 0 means "disabled"
+ */
 function formatNumber(n: number, step: number, suffix: string, zeroText?: string): string {
   if (n === 0 && zeroText !== undefined) return zeroText;
   return (Number.isFinite(n) ? n.toFixed(decimalsOf(step)) : "--") + suffix;
