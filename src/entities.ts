@@ -33,6 +33,7 @@ export const ENTITIES = {
   rotatePlate: { domain: "button", name: "Rotate Plate" },
   doorToggle: { domain: "button", name: "Toggle Lid" },
   chime: { domain: "button", name: "Play Chime" },
+  clearMissedMeal: { domain: "button", name: "Clear Missed Meal" },
   visitCount: { domain: "sensor", name: "Pet Visit Count" },
   lastVisitTime: { domain: "text_sensor", name: "Last Visit" },
   lastVisitDuration: { domain: "sensor", name: "Last Visit Duration" },
