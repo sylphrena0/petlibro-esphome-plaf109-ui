@@ -45,14 +45,29 @@ const BANNER_TONES = {
   warn: { box: "bg-accent-soft", badge: "bg-accent/20 text-accent-dark", title: "text-accent-dark" },
 } as const;
 
-function banner(hidden: boolean, tone: keyof typeof BANNER_TONES, icon: string, title: string, detail: string): TemplateResult {
+function banner(
+  hidden: boolean,
+  tone: keyof typeof BANNER_TONES,
+  icon: string,
+  title: string,
+  detail: string,
+  action?: { label: string; onClick: () => void },
+): TemplateResult {
   const t = BANNER_TONES[tone];
   return html`<div class="flex items-center gap-3 rounded-lg px-3.5 py-2 mb-3.5 ${t.box}" ?hidden=${hidden}>
     <span class="w-9 h-9 shrink-0 rounded-full flex items-center justify-center ${t.badge}">${msIcon(icon, "w-5 h-5")}</span>
-    <div class="flex flex-col gap-0.5 min-w-0">
+    <div class="flex flex-col gap-0.5 min-w-0 flex-1">
       <div class="text-[14px] font-bold ${t.title}">${title}</div>
       <div class="text-xs text-text-muted">${detail}</div>
     </div>
+    ${action
+      ? html`<button
+          class="flex-none h-8 px-3 rounded-full border-0 ${t.badge} text-[13px] font-bold cursor-pointer active:scale-90"
+          @click=${action.onClick}
+        >
+          ${action.label}
+        </button>`
+      : null}
   </div>`;
 }
 
@@ -122,6 +137,7 @@ export function renderTemplate(remote: PlaRemote): TemplateResult {
       errorIcon,
       "Pet missed a meal",
       "Today's meals may be offset unless fed manually.",
+      { label: "Clear", onClick: () => remote.pressButton(ENTITIES.clearMissedMeal) },
     )}
     ${banner(!remote.onBattery, "warn", powerOffIcon, "Running on battery", "Cooling is paused until AC power returns.")}
 
