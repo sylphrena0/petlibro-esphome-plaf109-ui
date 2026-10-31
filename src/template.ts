@@ -132,11 +132,11 @@ export function renderTemplate(remote: PlaRemote): TemplateResult {
     </div>
 
     ${banner(
-      !remote.isOn(ENTITIES.missedMeal),
+      remote.missedMealReason === null,
       "danger",
       errorIcon,
       "Pet missed a meal",
-      "Today's meals may be offset unless fed manually.",
+      remote.missedMealReason ?? "",
       { label: "Clear", onClick: () => remote.pressButton(ENTITIES.clearMissedMeal) },
     )}
     ${banner(!remote.onBattery, "warn", powerOffIcon, "Running on battery", "Cooling is paused until AC power returns.")}
