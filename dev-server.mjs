@@ -20,7 +20,7 @@ set(ENTITIES.cooling, true, "ON");
 set(ENTITIES.schedule, true, "ON");
 set(ENTITIES.presence, false, "OFF");
 set(ENTITIES.acPower, true, "ON");
-set(ENTITIES.missedMeal, false, "OFF");
+set(ENTITIES.missedMealReason, "", "");
 set(ENTITIES.battery, 87, "87 %");
 set(ENTITIES.chamberTemp, null, "NA");
 setTimeout(() => {

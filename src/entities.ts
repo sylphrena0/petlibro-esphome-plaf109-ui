@@ -16,7 +16,7 @@ export const ENTITIES = {
   schedule: { domain: "switch", name: "Feeding Schedule" },
   cooling: { domain: "switch", name: "Cooling Enabled" },
   presence: { domain: "binary_sensor", name: "Pet Present" },
-  missedMeal: { domain: "binary_sensor", name: "Missed Meal" },
+  missedMealReason: { domain: "text_sensor", name: "Missed Meal Reason" },
   acPower: { domain: "binary_sensor", name: "AC Power Present" },
   battery: { domain: "sensor", name: "Battery Percentage" },
   chamberTemp: { domain: "sensor", name: "Chamber Temperature" },

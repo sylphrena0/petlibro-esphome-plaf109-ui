@@ -158,6 +158,11 @@ export class PlaRemote extends LitElement {
     return (Number.isFinite(n) ? n.toFixed(decimalsOf(this.stepOf(entity))) : "--") + suffix;
   }
 
+  // null when no meal was missed
+  get missedMealReason(): string | null {
+    return this.str(ENTITIES.missedMealReason) || null;
+  }
+
   get onBattery(): boolean {
     return !!this.entityState(ENTITIES.acPower) && !this.isOn(ENTITIES.acPower);
   }
