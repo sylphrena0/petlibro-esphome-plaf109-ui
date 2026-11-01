@@ -295,7 +295,7 @@ export function renderTemplate(remote: PlaRemote): TemplateResult {
       </div>
       <div class="row">
         <div class="row-label"><span class="badge">${msIcon(targetIcon)}</span>Target</div>
-        ${numberStepper(remote, ENTITIES.coolingTarget, "°")}
+        ${numberStepper(remote, ENTITIES.coolingTarget, "°", { editable: true, label: "Cooling Target" })}
       </div>
     </div>
 
