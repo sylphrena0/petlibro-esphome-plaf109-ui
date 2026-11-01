@@ -1,5 +1,6 @@
 // Local preview server
 
+import { statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, join } from "node:path";
@@ -37,7 +38,10 @@ set(ENTITIES.arrivalTimeout, "10", "10", { min_value: "1", max_value: "1440", st
 set(ENTITIES.minimumFeedingTime, "3", "3", { min_value: "0", max_value: "240", step: "1" });
 set(ENTITIES.chimeInterval, "0", "0", { min_value: "0", max_value: "600", step: "5" });
 set(ENTITIES.statusLed, true, "ON");
-set(ENTITIES.firmwareVersion, "2026.9.0 (config hash 0xdeadbeef, built Sep 12 2026, 05:47:00)");
+// built time in ESPHome's format, from the last yarn build
+const built = statSync(join(build, "app.js")).mtime;
+const builtText = `${built.toLocaleString("en-US", { month: "short" })} ${built.getDate()} ${built.getFullYear()}, ${built.toTimeString().slice(0, 8)}`;
+set(ENTITIES.firmwareVersion, `2026.10.1 (config hash 0xdeadbeef, built ${builtText})`);
 const [mealOne, mealTwo, mealThree] = ENTITIES.feedTimes;
 set(mealOne, "07:30:00", "07:30:00");
 set(mealTwo, "12:30:00", "12:30:00");
