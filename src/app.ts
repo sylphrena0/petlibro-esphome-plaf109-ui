@@ -247,7 +247,7 @@ export class PlaRemote extends LitElement {
     };
   }
 
-  // Accepts "10", "10 min", or `zeroText` ("Off") for 0, within the entity's min, max and step
+  /** Parses "10", "10 min", or `zeroText` as 0, within the entity's min, max and step */
   private parseNumberInput(entity: Entity, raw: string, suffix: string, zeroText?: string): { value: number } | { error: string } {
     const text = raw.trim().toLowerCase();
     const unit = suffix.trim().toLowerCase();
@@ -269,7 +269,7 @@ export class PlaRemote extends LitElement {
     return { value };
   }
 
-  // Resolves to whether the device accepted the request
+  /** Sends an action to the device, resolving true on success */
   private async post(entity: Entity, action: string, query?: string): Promise<boolean> {
     let url = "/" + entity.domain + "/" + encodeURIComponent(entity.name) + "/" + action;
     if (query) url += "?" + query;
@@ -290,6 +290,7 @@ export class PlaRemote extends LitElement {
     this.errorTimer = setTimeout(() => (this.errorText = null), 5000);
   }
 
+  /** Subscribes to the device's state and ping events */
   private connectSSE(): void {
     const eventSource = new EventSource("/events");
     eventSource.addEventListener("state", (e: Event) => {
@@ -380,8 +381,8 @@ export class PlaRemote extends LitElement {
     void this.post(entity, "press");
   }
 
-  // Lit only re-sets .checked when the rendered value changes, so undo a rejected toggle by hand
-  async setSwitch(entity: Entity, e: Event): Promise<void> {
+  // Lit only re-sets .checked when the rendered value changes, so undo a rejected toggle manually
+  async setSwitch(e: Event, entity: Entity): Promise<void> {
     const input = e.target as HTMLInputElement;
     const ok = await this.post(entity, input.checked ? "turn_on" : "turn_off");
     if (!ok) input.checked = this.isOn(entity);
@@ -400,8 +401,8 @@ export class PlaRemote extends LitElement {
     return this.editingNumbers.has(id) || this.savingNumbers.has(id);
   }
 
-  // Swaps the display text ("Off", "10 min") for the bare number while typing
-  onNumberFocus(entity: Entity, e: Event): void {
+  /** Shows the bare number while typing */
+  onNumberFocus(e: Event, entity: Entity): void {
     const input = e.target as HTMLInputElement;
     this.editingNumbers.add(entityId(entity));
     const n = this.num(entity);
@@ -409,13 +410,17 @@ export class PlaRemote extends LitElement {
     input.select();
   }
 
-  onNumberKeydown(entity: Entity, e: KeyboardEvent): void {
+  onNumberKeydown(e: KeyboardEvent, entity: Entity): void {
     const input = e.target as HTMLInputElement;
     if (e.key === "Escape") this.editingNumbers.delete(entityId(entity)); // makes the change handler skip it
     if (e.key === "Enter" || e.key === "Escape") input.blur();
   }
 
-  async onNumberChange(entity: Entity, suffix: string, zeroText: string | undefined, e: Event): Promise<void> {
+  /**
+   * Saves a typed number
+   * @param zeroText typed in place of 0, e.g. "Off"
+   */
+  async onNumberChange(e: Event, entity: Entity, suffix: string, zeroText?: string): Promise<void> {
     const input = e.target as HTMLInputElement;
     const id = entityId(entity);
     if (!this.editingNumbers.has(id) || input.value.trim() === "") return; // blur puts the current value back
@@ -435,7 +440,7 @@ export class PlaRemote extends LitElement {
     if (!ok) input.value = this.numText(entity, suffix, zeroText);
   }
 
-  onNumberBlur(entity: Entity, suffix: string, zeroText: string | undefined, e: Event): void {
+  onNumberBlur(e: Event, entity: Entity, suffix: string, zeroText?: string): void {
     const id = entityId(entity);
     this.editingNumbers.delete(id);
     if (!this.savingNumbers.has(id)) (e.target as HTMLInputElement).value = this.numText(entity, suffix, zeroText);
@@ -445,12 +450,12 @@ export class PlaRemote extends LitElement {
     this.editingMealTime[idx] = true;
   }
 
-  onMealTimeBlur(idx: number, e: Event): void {
+  onMealTimeBlur(e: Event, idx: number): void {
     (e.target as HTMLInputElement).setCustomValidity("");
     this.endMealEdit(idx);
   }
 
-  async onMealTimeChange(idx: number, e: Event): Promise<void> {
+  async onMealTimeChange(e: Event, idx: number): Promise<void> {
     const input = e.target as HTMLInputElement;
     const meal = ENTITIES.feedTimes[idx];
     if (!meal || !input.value) {

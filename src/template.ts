@@ -120,10 +120,10 @@ function numberStepper(remote: PlaRemote, entity: Entity, suffix: string, { zero
         aria-label=${label ?? entity.name}
         class="w-18 rounded-sm border-0 bg-black/20 px-1 py-1 text-center text-[15px] font-extrabold text-inherit font-[inherit] cursor-text outline-none focus:bg-tray focus:ring-2 focus:ring-accent"
         .value=${inputValue}
-        @focus=${(e: Event) => remote.onNumberFocus(entity, e)}
-        @keydown=${(e: KeyboardEvent) => remote.onNumberKeydown(entity, e)}
-        @change=${(e: Event) => remote.onNumberChange(entity, suffix, zeroText, e)}
-        @blur=${(e: Event) => remote.onNumberBlur(entity, suffix, zeroText, e)}
+        @focus=${(e: Event) => remote.onNumberFocus(e, entity)}
+        @keydown=${(e: KeyboardEvent) => remote.onNumberKeydown(e, entity)}
+        @change=${(e: Event) => remote.onNumberChange(e, entity, suffix, zeroText)}
+        @blur=${(e: Event) => remote.onNumberBlur(e, entity, suffix, zeroText)}
       />`
     : html`<span class="min-w-11 text-center font-extrabold text-[15px]">${text}</span>`;
   return html`
@@ -216,7 +216,7 @@ export function renderTemplate(remote: PlaRemote): TemplateResult {
     <div class="card">
       <div class="card-title">
         <h2>Feeding Schedule</h2>
-        ${switchToggle(remote.isOn(ENTITIES.schedule), (e) => remote.setSwitch(ENTITIES.schedule, e))}
+        ${switchToggle(remote.isOn(ENTITIES.schedule), (e) => remote.setSwitch(e, ENTITIES.schedule))}
       </div>
       <div class="flex items-center gap-4.5">
         ${plate((i) => MEAL_COLORS[i] ?? null)}
@@ -234,8 +234,8 @@ export function renderTemplate(remote: PlaRemote): TemplateResult {
                   class="time-input flex-1 min-w-0 border-0 bg-transparent p-0 text-sm font-bold text-inherit font-[inherit] disabled:opacity-40"
                   .value=${remote.isEditingMealTime(i) ? noChange : live(remote.mealTimes[i] ?? "")}
                   @focus=${() => remote.onMealTimeFocus(i)}
-                  @blur=${(e: Event) => remote.onMealTimeBlur(i, e)}
-                  @change=${(e: Event) => remote.onMealTimeChange(i, e)}
+                  @blur=${(e: Event) => remote.onMealTimeBlur(e, i)}
+                  @change=${(e: Event) => remote.onMealTimeChange(e, i)}
                 />
               </label>
             `,
@@ -291,7 +291,7 @@ export function renderTemplate(remote: PlaRemote): TemplateResult {
       </div>
       <div class="row">
         <div class="row-label"><span class="badge">${msIcon(coolingIcon)}</span>Cooling</div>
-        ${switchToggle(remote.isOn(ENTITIES.cooling), (e) => remote.setSwitch(ENTITIES.cooling, e))}
+        ${switchToggle(remote.isOn(ENTITIES.cooling), (e) => remote.setSwitch(e, ENTITIES.cooling))}
       </div>
       <div class="row">
         <div class="row-label"><span class="badge">${msIcon(targetIcon)}</span>Target</div>
@@ -339,7 +339,7 @@ export function renderTemplate(remote: PlaRemote): TemplateResult {
         ledModeIcon,
         "Status LED",
         "Enable to show a steady white light while everything is fine. Warnings show regardless: red pulse for a missed meal and pulsing white when Wi-Fi is down.",
-        switchToggle(remote.isOn(ENTITIES.statusLed), (e) => remote.setSwitch(ENTITIES.statusLed, e)),
+        switchToggle(remote.isOn(ENTITIES.statusLed), (e) => remote.setSwitch(e, ENTITIES.statusLed)),
       )}
     </div>
 
