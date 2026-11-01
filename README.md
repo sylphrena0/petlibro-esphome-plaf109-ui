@@ -33,7 +33,7 @@ Requires Node 24 and Yarn (`corepack enable`).
 yarn install
 yarn dev # build, then serve a mock feeder at http://localhost:8081
 yarn build # build/app.js and build/style.css
-yarn lint
+yarn lint # also runs as a pre-commit hook
 ```
 
 `yarn dev` runs [dev-server.mjs](dev-server.mjs), which mocks the ESPHome `/events` stream and REST endpoints so you can work on the UI without a device.

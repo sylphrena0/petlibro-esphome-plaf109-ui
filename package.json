@@ -11,7 +11,8 @@
     "build": "tsc && tailwindcss -i css/tailwind.css -o build/.tw.css -m && esbuild build/.tw.css --bundle --minify --loader:.png=dataurl --outfile=build/style.css && rm build/.tw.css && esbuild src/app.ts --bundle --minify --loader:.svg=text --outfile=build/app.js --format=esm --target=es2020",
     "watch": "tsc --watch",
     "lint": "eslint src/*.ts",
-    "dev": "yarn build && node dev-server.mjs"
+    "dev": "yarn build && node dev-server.mjs",
+    "postinstall": "husky"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -19,6 +20,7 @@
     "esbuild": "^0.28.2",
     "eslint": "^10.13.0",
     "eslint-plugin-sonarjs": "^4.2.2",
+    "husky": "^9.1.7",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.1"
