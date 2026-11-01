@@ -61,11 +61,12 @@ function banner(
     <span class="w-9 h-9 shrink-0 rounded-full flex items-center justify-center ${t.badge}">${msIcon(icon, "w-5 h-5")}</span>
     <div class="flex flex-col gap-0.5 min-w-0 flex-1">
       <div class="text-[14px] font-bold ${t.title}">${title}</div>
-      <div class="text-xs text-text-muted">${detail}</div>
+      <div class="text-xs text-banner-detail">${detail}</div>
     </div>
     ${action
       ? html`<button
           class="flex-none h-8 px-3 rounded-full border-0 ${t.badge} text-[13px] font-bold cursor-pointer active:scale-90"
+          aria-label="${action.label}: ${title}"
           @click=${action.onClick}
         >
           ${action.label}
@@ -84,11 +85,13 @@ function settingRow(remote: PlaRemote, icon: string, label: string, help: string
   </div>`;
 }
 
-function switchToggle(checked: boolean, onChange: (e: Event) => void): TemplateResult {
+function switchToggle(label: string, checked: boolean, onChange: (e: Event) => void): TemplateResult {
   return html`
     <label class="relative w-11 h-6.5 shrink-0 inline-block">
       <input
         type="checkbox"
+        role="switch"
+        aria-label=${label}
         class="peer absolute inset-0 opacity-0 w-full h-full m-0 z-10 cursor-pointer"
         .checked=${checked}
         @change=${onChange}
@@ -131,9 +134,9 @@ function numberStepper(remote: PlaRemote, entity: Entity, unit: string, { zeroTe
     : html`<span class="min-w-11 text-center font-extrabold text-[15px]">${text}</span>`;
   return html`
     <div class="flex items-center gap-2.5">
-      <button class="${stepBtn}" @click=${() => remote.stepNumberEntity(entity, -1)}>−</button>
+      <button class="${stepBtn}" aria-label="Decrease ${label ?? entity.name}" @click=${() => remote.stepNumberEntity(entity, -1)}>−</button>
       ${value}
-      <button class="${stepBtn}" @click=${() => remote.stepNumberEntity(entity, 1)}>+</button>
+      <button class="${stepBtn}" aria-label="Increase ${label ?? entity.name}" @click=${() => remote.stepNumberEntity(entity, 1)}>+</button>
     </div>
   `;
 }
@@ -141,7 +144,7 @@ function numberStepper(remote: PlaRemote, entity: Entity, unit: string, { zeroTe
 export function renderTemplate(remote: PlaRemote): TemplateResult {
   const nextMeal = remote.nextMeal;
   return html`
-    <div class="flex items-center justify-between pt-[calc(16px+env(safe-area-inset-top))] px-1 max-narrow:px-4.5 pb-3">
+    <header class="flex items-center justify-between pt-[calc(16px+env(safe-area-inset-top))] px-1 max-narrow:px-4.5 pb-3">
       <div>
         <h1 class="text-[19px] max-[385px]:text-base font-bold m-0 tracking-[0.2px]">${remote.deviceTitle}</h1>
         <div class="text-xs text-text-muted mt-0.5 flex items-center gap-1">
@@ -156,8 +159,9 @@ export function renderTemplate(remote: PlaRemote): TemplateResult {
   )}
         <span class="leading-none">${remote.batteryPctText}</span>
       </div>
-    </div>
+    </header>
 
+    <main>
     ${banner(
       remote.missedMealReason === null,
       "danger",
@@ -233,7 +237,7 @@ export function renderTemplate(remote: PlaRemote): TemplateResult {
         </div>
       </div>
       <div class="flex gap-2.5 mt-4">
-        <button class="btn bg-accent text-white" @click=${() => remote.pressButton(ENTITIES.feedNow)}>
+        <button class="btn bg-accent text-accent-ink" @click=${() => remote.pressButton(ENTITIES.feedNow)}>
           ${msIcon(chimeIcon, "w-4.5 h-4.5")}
           Feed Now
         </button>
@@ -244,7 +248,7 @@ export function renderTemplate(remote: PlaRemote): TemplateResult {
     <div class="card">
       <div class="card-title">
         <h2>Feeding Schedule</h2>
-        ${switchToggle(remote.isOn(ENTITIES.schedule), (e) => remote.setSwitch(e, ENTITIES.schedule))}
+        ${switchToggle("Feeding Schedule", remote.isOn(ENTITIES.schedule), (e) => remote.setSwitch(e, ENTITIES.schedule))}
       </div>
       <div class="flex items-center gap-4.5">
         ${plate((i) => MEAL_COLORS[i] ?? null)}
@@ -320,7 +324,7 @@ export function renderTemplate(remote: PlaRemote): TemplateResult {
       </div>
       <div class="row">
         <div class="row-label"><span class="badge">${msIcon(coolingIcon)}</span>Cooling</div>
-        ${switchToggle(remote.isOn(ENTITIES.cooling), (e) => remote.setSwitch(e, ENTITIES.cooling))}
+        ${switchToggle("Cooling", remote.isOn(ENTITIES.cooling), (e) => remote.setSwitch(e, ENTITIES.cooling))}
       </div>
       <div class="row">
         <div class="row-label"><span class="badge">${msIcon(targetIcon)}</span>Target</div>
@@ -368,11 +372,12 @@ export function renderTemplate(remote: PlaRemote): TemplateResult {
         ledModeIcon,
         "Status LED",
         "Enable to show a steady white light while everything is fine. Warnings show regardless: red pulse for a missed meal and pulsing white when Wi-Fi is down.",
-        switchToggle(remote.isOn(ENTITIES.statusLed), (e) => remote.setSwitch(e, ENTITIES.statusLed)),
+        switchToggle("Status LED", remote.isOn(ENTITIES.statusLed), (e) => remote.setSwitch(e, ENTITIES.statusLed)),
       )}
     </div>
+    </main>
 
-    <div class="text-center">
+    <footer class="text-center">
       <a
         class="text-xs text-text-muted underline underline-offset-2"
         href="https://github.com/esphome/esphome/releases"
@@ -380,6 +385,6 @@ export function renderTemplate(remote: PlaRemote): TemplateResult {
         rel="noopener"
         >${remote.firmwareVersionText}</a
       >
-    </div>
+    </footer>
   `;
 }

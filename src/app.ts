@@ -9,6 +9,7 @@ if (!document.querySelector('meta[name="viewport"]')) {
   viewport.content = "width=device-width, initial-scale=1";
   document.head.appendChild(viewport);
 }
+if (!document.documentElement.lang) document.documentElement.lang = "en";
 
 interface EntityState {
   id: string;
@@ -339,7 +340,7 @@ export class PlaRemote extends LitElement {
       const event = e as MessageEvent<string>;
       try {
         const { title, uptime }: { title?: string; uptime?: number } = JSON.parse(event.data);
-        if (typeof title === "string") this.deviceTitle = title;
+        if (typeof title === "string") this.deviceTitle = document.title = title;
         if (typeof uptime === "number") {
           this.uptimeBaseSeconds = uptime;
           this.uptimeBaseAt = Date.now();
