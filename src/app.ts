@@ -302,10 +302,10 @@ export class PlaRemote extends LitElement {
     try {
       const res = await fetch(url, { method: "POST", credentials: "same-origin" });
       if (res.ok) return true;
-      this.showToast(`${entity.name}: error code ${res.status}`);
+      this.showToast(`Failed to save, server returned ${res.status}`);
     } catch (err) {
       console.error("PLAF109 remote: request failed", url, err);
-      this.showToast(`${entity.name}: request failed`);
+      this.showToast("Failed to save, request failed");
     }
     return false;
   }
@@ -482,7 +482,7 @@ export class PlaRemote extends LitElement {
     const step = this.stepOf(entity);
     if (result.rounded) {
       const stepText = formatNumber(step, step, unit);
-      this.showToast(`Rounded to ${formatNumber(result.value, step, unit, zeroText)}, ${entity.name} is set in steps of ${stepText}`, true);
+      this.showToast(`Rounded to ${formatNumber(result.value, step, unit, zeroText)}, entity accepts steps of ${stepText}`, true);
     }
     if (result.value !== this.num(entity)) void this.setValue(entity, result.value.toFixed(decimalsOf(step)));
   }
