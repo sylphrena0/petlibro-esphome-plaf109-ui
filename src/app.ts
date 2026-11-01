@@ -112,8 +112,8 @@ interface NextMeal {
 }
 
 export class PlaRemote extends LitElement {
-  private editingMealTime: Record<number, boolean> = {};
-  private editing?: string; // entity id of the focused number input
+  private editing?: string; // entity id of the focused number or time input
+  private pendingMealTime?: { value: string; meal: Entity; index: number; timer: ReturnType<typeof setTimeout> };
   private confirmed: Record<string, EntityState> = {}; // last state from the device, without optimistic values
   private eventSource?: EventSource;
   private nextMealTimer?: ReturnType<typeof setInterval>;
@@ -128,8 +128,6 @@ export class PlaRemote extends LitElement {
   @state() connLabel = "Connecting…";
   @state() toast: { text: string; info: boolean } | null = null;
   @state() showSettingsHelp = false;
-  // Separate from the store so a state event can't overwrite a time the user is editing
-  @state() mealTimes: string[] = ENTITIES.feedTimes.map(() => "");
 
   protected override createRenderRoot(): this {
     return this;
@@ -141,6 +139,7 @@ export class PlaRemote extends LitElement {
     // meal times don't change every tick, but "next" does as the clock moves past one
     this.nextMealTimer = setInterval(() => this.requestUpdate(), 30000);
     this.uptimeTimer = setInterval(() => this.renderUptime(), 1000);
+    document.addEventListener("visibilitychange", this.onVisibilityChange);
   }
 
   override disconnectedCallback(): void {
@@ -151,9 +150,13 @@ export class PlaRemote extends LitElement {
     if (this.eventSource) this.eventSource.close();
     this.toast = null;
     this.setConnected(false);
-    this.editingMealTime = {};
     this.editing = undefined;
+    document.removeEventListener("visibilitychange", this.onVisibilityChange);
   }
+
+  private readonly onVisibilityChange = (): void => {
+    if (document.visibilityState === "hidden") this.saveMealTime(false);
+  };
 
   override render(): TemplateResult {
     return renderTemplate(this);
@@ -300,7 +303,7 @@ export class PlaRemote extends LitElement {
     let url = "/" + entity.domain + "/" + encodeURIComponent(entity.name) + "/" + action;
     if (query) url += "?" + query;
     try {
-      const res = await fetch(url, { method: "POST", credentials: "same-origin" });
+      const res = await fetch(url, { method: "POST", credentials: "same-origin", keepalive: true });
       if (res.ok) return true;
       this.showToast(`Failed to save, server returned ${res.status}`);
     } catch (err) {
@@ -331,9 +334,6 @@ export class PlaRemote extends LitElement {
       const merged = { ...this.confirmed[state.id], ...state };
       this.confirmed[state.id] = merged;
       this.store = { ...this.store, [state.id]: merged };
-      ENTITIES.feedTimes.forEach((meal, idx) => {
-        if (entityId(meal) === state.id) this.syncMealTime(idx, meal);
-      });
     });
     eventSource.addEventListener("ping", (e: Event) => {
       const event = e as MessageEvent<string>;
@@ -369,35 +369,25 @@ export class PlaRemote extends LitElement {
     this.connLabel = formatUptime(elapsed);
   }
 
-  private syncMealTime(idx: number, meal: Entity): void {
-    const value = this.str(meal);
-    if (this.editingMealTime[idx] || value === undefined) return;
-    const next = [...this.mealTimes];
-    next[idx] = value.slice(0, 5); // HH:MM:SS to HH:MM for <input type=time>
-    this.mealTimes = next;
+  /** Meal time as HH:MM for <input type=time> */
+  mealTimeValue(meal: Entity): string {
+    return this.str(meal)?.slice(0, 5) ?? "";
   }
 
-  private minGapMinutes(): number {
-    const arrival = this.num(ENTITIES.arrivalTimeout);
-    const minFeed = this.num(ENTITIES.minimumFeedingTime);
-    return (Number.isFinite(arrival) ? arrival : 0) + (Number.isFinite(minFeed) ? minFeed : 0);
-  }
-
-  private validateMealTimes(idx: number, candidate: string): string | null {
-    const times = [...this.mealTimes];
-    times[idx] = candidate;
-    const minutes: number[] = [];
-    for (const t of times) {
-      const m = parseTimeToMinutes(t);
-      if (m === null) return null;
-      minutes.push(m);
-    }
-    const gap = this.minGapMinutes();
-    for (let i = 1; i < minutes.length; i++) {
-      const delta = (minutes[i] ?? 0) - (minutes[i - 1] ?? 0);
-      if (delta <= 0) return "Meal times must be set in order.";
-      if (delta < gap) return `Meals must be at least ${gap} min apart (arrival timeout + minimum feeding time).`;
-    }
+  /** Error if `minutes` isn't between the device's nearest set meals before and after meal `index` */
+  private mealOrderError(index: number, minutes: number): string | null {
+    const meals = ENTITIES.feedTimes.map((meal: Entity) => {
+      const value = this.confirmed[entityId(meal)]?.value;
+      return { name: meal.name, minutes: parseTimeToMinutes(typeof value === "string" ? value : undefined) };
+    });
+    const own = meals[index];
+    const name = own?.name;
+    // a neighbour still at this meal's time was never set, e.g. all at 00:00 after flashing
+    const isSet = (m: { minutes: number | null }) => m.minutes !== null && m.minutes !== own?.minutes;
+    const before = meals.slice(0, index).reverse().find(isSet);
+    const after = meals.slice(index + 1).find(isSet);
+    if (before && minutes <= (before.minutes ?? -1)) return `${name} must be after ${before.name}`;
+    if (after && minutes >= (after.minutes ?? 24 * 60)) return `${name} must be before ${after.name}`;
     return null;
   }
 
@@ -448,7 +438,11 @@ export class PlaRemote extends LitElement {
 
   onEditKeydown(e: KeyboardEvent): void {
     const input = e.target as HTMLInputElement;
-    if (e.key === "Escape") this.editing = undefined; // makes the change handler skip it
+    if (e.key === "Escape") {
+      this.editing = undefined; // makes the number change handler skip it
+      if (this.pendingMealTime) clearTimeout(this.pendingMealTime.timer);
+      this.pendingMealTime = undefined;
+    }
     if (e.key === "Enter" || e.key === "Escape") input.blur();
   }
 
@@ -487,50 +481,40 @@ export class PlaRemote extends LitElement {
     if (result.value !== this.num(entity)) void this.setValue(entity, result.value.toFixed(decimalsOf(step)));
   }
 
-  onMealTimeFocus(idx: number): void {
-    this.editingMealTime[idx] = true;
+  /** Debounces saves, as change fires per typed segment, but saves right away once the input has lost focus */
+  onMealTimeChange(e: Event, meal: Entity, index: number): void {
+    if (this.pendingMealTime?.meal !== meal) this.saveMealTime(true);
+    if (this.pendingMealTime) clearTimeout(this.pendingMealTime.timer);
+    const timer = setTimeout(() => this.saveMealTime(false), 2000);
+    this.pendingMealTime = { value: (e.target as HTMLInputElement).value, meal, index, timer };
+    if (!this.isEditing(meal)) this.saveMealTime(true);
   }
 
-  onMealTimeBlur(e: Event, idx: number): void {
-    (e.target as HTMLInputElement).setCustomValidity("");
-    this.endMealEdit(idx);
+  onMealTimeBlur(): void {
+    this.saveMealTime(true);
+    this.onEditBlur();
   }
 
-  async onMealTimeChange(e: Event, idx: number): Promise<void> {
-    const input = e.target as HTMLInputElement;
-    const meal = ENTITIES.feedTimes[idx];
-    if (!meal || !input.value) {
-      this.endMealEdit(idx, input);
+  /**
+   * Saves the changed meal time, if any
+   * @param final shows why an out-of-order time wasn't saved, instead of waiting for more typing
+   */
+  private saveMealTime(final: boolean): void {
+    const pending = this.pendingMealTime;
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    const { value, meal, index } = pending;
+    const minutes = parseTimeToMinutes(value);
+    const error = minutes === null ? null : this.mealOrderError(index, minutes);
+    if (error && !final) return;
+    this.pendingMealTime = undefined;
+    if (minutes === null || value === this.mealTimeValue(meal)) return;
+    if (!error) {
+      void this.setValue(meal, value + ":00");
       return;
     }
-    const error = this.validateMealTimes(idx, input.value);
-    if (error) {
-      this.endMealEdit(idx, input);
-      input.setCustomValidity(error);
-      input.reportValidity();
-      return;
-    }
-    input.setCustomValidity("");
-    const ok = await this.post(meal, "set", "value=" + encodeURIComponent(input.value + ":00"));
-    if (!ok) {
-      this.endMealEdit(idx, input);
-    } else if (document.activeElement !== input) {
-      this.endMealEdit(idx);
-    }
-  }
-
-  isEditingMealTime(idx: number): boolean {
-    return this.editingMealTime[idx] === true;
-  }
-
-  private endMealEdit(idx: number, revertInput?: HTMLInputElement): void {
-    this.editingMealTime[idx] = false;
-    const meal = ENTITIES.feedTimes[idx];
-    if (meal) this.syncMealTime(idx, meal);
-    if (revertInput) {
-      revertInput.setCustomValidity("");
-      this.requestUpdate();
-    }
+    this.showToast(error);
+    this.requestUpdate(); // puts back the stored time if the input no longer has focus
   }
 }
 

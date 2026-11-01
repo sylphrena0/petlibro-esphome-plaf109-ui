@@ -235,10 +235,11 @@ export function renderTemplate(remote: PlaRemote): TemplateResult {
                   type="time"
                   aria-label=${meal.name}
                   class="time-input flex-1 min-w-0 border-0 bg-transparent p-0 text-sm font-bold text-inherit font-[inherit] disabled:opacity-40"
-                  .value=${remote.isEditingMealTime(i) ? noChange : live(remote.mealTimes[i] ?? "")}
-                  @focus=${() => remote.onMealTimeFocus(i)}
-                  @blur=${(e: Event) => remote.onMealTimeBlur(e, i)}
-                  @change=${(e: Event) => remote.onMealTimeChange(e, i)}
+                  .value=${remote.isEditing(meal) ? noChange : live(remote.mealTimeValue(meal))}
+                  @focus=${() => remote.onEditFocus(meal)}
+                  @keydown=${(e: KeyboardEvent) => remote.onEditKeydown(e)}
+                  @change=${(e: Event) => remote.onMealTimeChange(e, meal, i)}
+                  @blur=${() => remote.onMealTimeBlur()}
                 />
               </label>
             `,
