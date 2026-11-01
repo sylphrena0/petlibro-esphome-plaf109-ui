@@ -74,13 +74,35 @@ function decimalsOf(n: number): number {
   return dot === -1 ? 0 : s.length - dot - 1;
 }
 
+// Intl duration units, each split into the next unit up, so 90 minutes shows as "1 hr 30 min"
+const LARGER_UNIT: Partial<Record<string, string>> = { second: "minute", minute: "hour" };
+
+/** Short local unit format, e.g. "45 min" */
+function unitFormat(unit: string): Intl.NumberFormat {
+  return new Intl.NumberFormat([], { style: "unit", unit, unitDisplay: "short" });
+}
+
 /**
  * Formats with as many decimals as `step`, so step 0.5 shows "40.5"
+ * @param unit an Intl duration unit ("minute", "second"), or a suffix such as "°"
  * @param zeroText replaces the whole text at 0, for numbers where 0 means "disabled"
  */
-function formatNumber(n: number, step: number, suffix: string, zeroText?: string): string {
+function formatNumber(n: number, step: number, unit: string, zeroText?: string): string {
   if (n === 0 && zeroText !== undefined) return zeroText;
-  return (Number.isFinite(n) ? n.toFixed(decimalsOf(step)) : "--") + suffix;
+  if (!Number.isFinite(n)) return "--";
+  const larger = LARGER_UNIT[unit];
+  if (!larger) return n.toFixed(decimalsOf(step)) + unit;
+  const big = Math.floor(n / 60);
+  const rest = n % 60;
+  if (!big) return unitFormat(unit).format(rest);
+  const bigText = unitFormat(larger).format(big);
+  return rest ? `${bigText} ${unitFormat(unit).format(rest)}` : bigText;
+}
+
+/** The unit as typed after a number, e.g. "min" */
+function unitLabel(unit: string): string {
+  if (!LARGER_UNIT[unit]) return unit;
+  return unitFormat(unit).formatToParts(1).find((part) => part.type === "unit")?.value ?? unit;
 }
 
 interface NextMeal {
@@ -164,8 +186,8 @@ export class PlaRemote extends LitElement {
     return text && text !== "NA" ? text : fallback;
   }
 
-  numText(entity: Entity, suffix: string, zeroText?: string): string {
-    return formatNumber(this.num(entity), this.stepOf(entity), suffix, zeroText);
+  numText(entity: Entity, unit: string, zeroText?: string): string {
+    return formatNumber(this.num(entity), this.stepOf(entity), unit, zeroText);
   }
 
   // null when no meal was missed
@@ -247,26 +269,28 @@ export class PlaRemote extends LitElement {
     };
   }
 
-  /** Parses "10", "10 min", or `zeroText` as 0, within the entity's min and max, rounded to the step */
+  /** Parses "10", "10 min", or `zeroText` as 0, rounded to the step */
   private parseNumberInput(
     entity: Entity,
     raw: string,
-    suffix: string,
+    unit: string,
     zeroText?: string,
   ): { value: number; rounded: boolean } | { error: string } {
     const text = raw.trim().toLowerCase();
-    const unit = suffix.trim().toLowerCase();
+    const label = unitLabel(unit).toLowerCase();
     let value = Number.NaN;
-    if (zeroText !== undefined && text === zeroText.toLowerCase()) {
+    if (text === zeroText?.toLowerCase()) {
       value = 0;
     } else {
-      const numberText = unit && text.endsWith(unit) ? text.slice(0, -unit.length).trim() : text;
+      const numberText = text.endsWith(label) ? text.slice(0, -label.length).trim() : text;
       if (numberText !== "") value = Number(numberText);
     }
     if (!Number.isFinite(value)) return { error: "Enter a number" };
 
     const { min, max, step } = this.rangeOf(entity);
-    if (value < min || value > max) return { error: `Must be between ${min} and ${max}${suffix}` };
+    if (value < min || value > max) {
+      return { error: `Must be between ${formatNumber(min, step, unit)} and ${formatNumber(max, step, unit)}` };
+    }
     const base = Number.isFinite(min) ? min : 0;
     const steps = (value - base) / step;
     if (Math.abs(steps - Math.round(steps)) <= 1e-9) return { value, rounded: false };
@@ -424,34 +448,34 @@ export class PlaRemote extends LitElement {
    * Saves a typed number, rounded to the step
    * @param zeroText typed in place of 0, e.g. "Off"
    */
-  async onNumberChange(e: Event, entity: Entity, suffix: string, zeroText?: string): Promise<void> {
+  async onNumberChange(e: Event, entity: Entity, unit: string, zeroText?: string): Promise<void> {
     const input = e.target as HTMLInputElement;
     const id = entityId(entity);
     if (!this.editingNumbers.has(id) || input.value.trim() === "") return; // blur puts the current value back
-    const result = this.parseNumberInput(entity, input.value, suffix, zeroText);
+    const result = this.parseNumberInput(entity, input.value, unit, zeroText);
     if ("error" in result) {
       this.showToast(result.error);
       return;
     }
     const step = this.stepOf(entity);
     if (result.rounded) {
-      const stepText = formatNumber(step, step, suffix);
-      this.showToast(`Rounded to ${formatNumber(result.value, step, suffix, zeroText)}, ${entity.name} is set in steps of ${stepText}`, true);
+      const stepText = formatNumber(step, step, unit);
+      this.showToast(`Rounded to ${formatNumber(result.value, step, unit, zeroText)}, ${entity.name} is set in steps of ${stepText}`, true);
     }
     if (result.value === this.num(entity)) return;
 
     // keep showing the typed value until the device's state event replaces it
     this.savingNumbers.add(id);
-    input.value = formatNumber(result.value, step, suffix, zeroText);
+    input.value = formatNumber(result.value, step, unit, zeroText);
     const ok = await this.post(entity, "set", "value=" + result.value.toFixed(decimalsOf(step)));
     this.savingNumbers.delete(id);
-    if (!ok) input.value = this.numText(entity, suffix, zeroText);
+    if (!ok) input.value = this.numText(entity, unit, zeroText);
   }
 
-  onNumberBlur(e: Event, entity: Entity, suffix: string, zeroText?: string): void {
+  onNumberBlur(e: Event, entity: Entity, unit: string, zeroText?: string): void {
     const id = entityId(entity);
     this.editingNumbers.delete(id);
-    if (!this.savingNumbers.has(id)) (e.target as HTMLInputElement).value = this.numText(entity, suffix, zeroText);
+    if (!this.savingNumbers.has(id)) (e.target as HTMLInputElement).value = this.numText(entity, unit, zeroText);
   }
 
   onMealTimeFocus(idx: number): void {

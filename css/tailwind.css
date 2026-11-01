@@ -22,6 +22,8 @@
   --radius-md: 16px;
   --radius-sm: 10px;
   --shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  /* below this, cards drop their styling for full-width sections */
+  --breakpoint-narrow: 380px;
 }
 
 @layer base {
@@ -42,6 +44,10 @@
     margin: 0 auto;
     padding: 0 16px calc(24px + env(safe-area-inset-bottom));
     min-height: 100vh;
+
+    @variant max-narrow {
+      padding-inline: 0;
+    }
   }
 
   input.time-input::-webkit-calendar-picker-indicator {
@@ -69,7 +75,7 @@
   }
 
   .card {
-    @apply mb-3.5 rounded-lg bg-card px-4.5 pt-4.5 pb-5 shadow;
+    @apply mb-3.5 rounded-lg bg-card px-4.5 pt-4.5 pb-5 shadow max-narrow:mb-0 max-narrow:rounded-none max-narrow:border-b max-narrow:border-tray max-narrow:bg-transparent max-narrow:shadow-none;
   }
 
   .card-title {

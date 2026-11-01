@@ -55,7 +55,7 @@ function banner(
   action?: { label: string; onClick: () => void },
 ): TemplateResult {
   const t = BANNER_TONES[tone];
-  return html`<div class="flex items-center gap-3 rounded-lg px-3.5 py-2 mb-3.5 ${t.box}" ?hidden=${hidden}>
+  return html`<div class="flex items-center gap-3 rounded-lg max-narrow:rounded-none px-3.5 max-narrow:px-4.5 py-2 mb-3.5 ${t.box}" ?hidden=${hidden}>
     <span class="w-9 h-9 shrink-0 rounded-full flex items-center justify-center ${t.badge}">${msIcon(icon, "w-5 h-5")}</span>
     <div class="flex flex-col gap-0.5 min-w-0 flex-1">
       <div class="text-[14px] font-bold ${t.title}">${title}</div>
@@ -107,9 +107,9 @@ interface NumberStepperOptions {
   label?: string; // accessible name for the typed input, defaults to the entity name
 }
 
-function numberStepper(remote: PlaRemote, entity: Entity, suffix: string, { zeroText, editable = false, label }: NumberStepperOptions = {}): TemplateResult {
+function numberStepper(remote: PlaRemote, entity: Entity, unit: string, { zeroText, editable = false, label }: NumberStepperOptions = {}): TemplateResult {
   const stepBtn = "w-7.5 h-7.5 rounded-full border-0 bg-tray text-accent-dark text-base font-extrabold cursor-pointer active:scale-90";
-  const text = remote.numText(entity, suffix, zeroText);
+  const text = remote.numText(entity, unit, zeroText);
   // leave the input alone while typing or saving so a state event doesn't overwrite it
   const inputValue = remote.isEditingNumber(entity) ? noChange : live(text);
   const value = editable
@@ -119,12 +119,12 @@ function numberStepper(remote: PlaRemote, entity: Entity, suffix: string, { zero
         enterkeyhint="done"
         autocomplete="off"
         aria-label=${label ?? entity.name}
-        class="w-18 rounded-sm border-0 bg-black/20 px-1 py-1 text-center text-[15px] font-extrabold text-inherit font-[inherit] cursor-text outline-none focus:bg-tray focus:ring-2 focus:ring-accent"
+        class="w-24 rounded-sm border-0 bg-black/20 px-1 py-1 text-center text-[15px] font-extrabold text-inherit font-[inherit] cursor-text outline-none focus:bg-tray focus:ring-2 focus:ring-accent"
         .value=${inputValue}
         @focus=${(e: Event) => remote.onNumberFocus(e, entity)}
         @keydown=${(e: KeyboardEvent) => remote.onNumberKeydown(e, entity)}
-        @change=${(e: Event) => remote.onNumberChange(e, entity, suffix, zeroText)}
-        @blur=${(e: Event) => remote.onNumberBlur(e, entity, suffix, zeroText)}
+        @change=${(e: Event) => remote.onNumberChange(e, entity, unit, zeroText)}
+        @blur=${(e: Event) => remote.onNumberBlur(e, entity, unit, zeroText)}
       />`
     : html`<span class="min-w-11 text-center font-extrabold text-[15px]">${text}</span>`;
   return html`
@@ -139,7 +139,7 @@ function numberStepper(remote: PlaRemote, entity: Entity, suffix: string, { zero
 export function renderTemplate(remote: PlaRemote): TemplateResult {
   const nextMeal = remote.nextMeal;
   return html`
-    <div class="flex items-center justify-between pt-[calc(16px+env(safe-area-inset-top))] px-1 pb-3">
+    <div class="flex items-center justify-between pt-[calc(16px+env(safe-area-inset-top))] px-1 max-narrow:px-4.5 pb-3">
       <div>
         <h1 class="text-[19px] max-[385px]:text-base font-bold m-0 tracking-[0.2px]">${remote.deviceTitle}</h1>
         <div class="text-xs text-text-muted mt-0.5 flex items-center gap-1">
@@ -228,8 +228,8 @@ export function renderTemplate(remote: PlaRemote): TemplateResult {
             (meal, i) => html`
               <label class="flex items-center gap-2 rounded-full pl-1 pr-3 py-1 text-bg ${MEAL_CHIPS[i] ?? MEAL_CHIPS[0]}">
                 <span
-                  class="h-6 min-w-6 @min-[190px]:w-19 px-1.5 shrink-0 rounded-full bg-black/15 flex items-center justify-center text-xs font-extrabold"
-                  ><span class="hidden @min-[190px]:inline">${meal.name}</span><span class="@min-[190px]:hidden">${i + 1}</span></span
+                  class="h-6 min-w-6 @min-[200px]:w-19 px-1.5 shrink-0 rounded-full bg-black/15 flex items-center justify-center text-xs font-extrabold"
+                  ><span class="hidden @min-[200px]:inline">${meal.name}</span><span class="@min-[200px]:hidden">${i + 1}</span></span
                 >
                 <input
                   type="time"
@@ -321,21 +321,21 @@ export function renderTemplate(remote: PlaRemote): TemplateResult {
         arrivalTimeoutIcon,
         "Arrival Timeout",
         "How long to wait for your pet once a meal is served. If they don't show up, the lid will close, and the plate won't rotate.",
-        numberStepper(remote, ENTITIES.arrivalTimeout, " min", { editable: true, label: "Arrival Timeout" }),
+        numberStepper(remote, ENTITIES.arrivalTimeout, "minute", { editable: true, label: "Arrival Timeout" }),
       )}
       ${settingRow(
         remote,
         feedingTimeIcon,
         "Feeding Time",
         "Once your pet arrives, how long to keep the lid open.",
-        numberStepper(remote, ENTITIES.minimumFeedingTime, " min", { editable: true, label: "Feeding Time" }),
+        numberStepper(remote, ENTITIES.minimumFeedingTime, "minute", { editable: true, label: "Feeding Time" }),
       )}
       ${settingRow(
         remote,
         chimeIntervalIcon,
         "Chime Interval",
         "While waiting for your pet, chime again every this many seconds until they arrive. Turn off to chime only once per meal.",
-        numberStepper(remote, ENTITIES.chimeInterval, " s", { zeroText: "Off", editable: true, label: "Chime Interval" }),
+        numberStepper(remote, ENTITIES.chimeInterval, "second", { zeroText: "Off", editable: true, label: "Chime Interval" }),
       )}
       ${settingRow(
         remote,
