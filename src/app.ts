@@ -97,7 +97,7 @@ export class PlaRemote extends LitElement {
   private eventSource?: EventSource;
   private nextMealTimer?: ReturnType<typeof setInterval>;
   private uptimeTimer?: ReturnType<typeof setInterval>;
-  private errorTimer?: ReturnType<typeof setTimeout>;
+  private toastTimer?: ReturnType<typeof setTimeout>;
   private uptimeBaseSeconds?: number;
   private uptimeBaseAt?: number;
 
@@ -105,7 +105,7 @@ export class PlaRemote extends LitElement {
   @state() deviceTitle = "PLAF109";
   @state() connected = false;
   @state() connLabel = "Connecting…";
-  @state() errorText: string | null = null;
+  @state() toast: { text: string; info: boolean } | null = null;
   @state() showSettingsHelp = false;
   // Separate from the store so a state event can't overwrite a time the user is editing
   @state() mealTimes: string[] = ENTITIES.feedTimes.map(() => "");
@@ -126,9 +126,9 @@ export class PlaRemote extends LitElement {
     super.disconnectedCallback();
     if (this.nextMealTimer) clearInterval(this.nextMealTimer);
     if (this.uptimeTimer) clearInterval(this.uptimeTimer);
-    if (this.errorTimer) clearTimeout(this.errorTimer);
+    if (this.toastTimer) clearTimeout(this.toastTimer);
     if (this.eventSource) this.eventSource.close();
-    this.errorText = null;
+    this.toast = null;
     this.setConnected(false);
     this.editingMealTime = {};
     this.editingNumbers.clear();
@@ -247,8 +247,13 @@ export class PlaRemote extends LitElement {
     };
   }
 
-  /** Parses "10", "10 min", or `zeroText` as 0, within the entity's min, max and step */
-  private parseNumberInput(entity: Entity, raw: string, suffix: string, zeroText?: string): { value: number } | { error: string } {
+  /** Parses "10", "10 min", or `zeroText` as 0, within the entity's min and max, rounded to the step */
+  private parseNumberInput(
+    entity: Entity,
+    raw: string,
+    suffix: string,
+    zeroText?: string,
+  ): { value: number; rounded: boolean } | { error: string } {
     const text = raw.trim().toLowerCase();
     const unit = suffix.trim().toLowerCase();
     let value = Number.NaN;
@@ -262,11 +267,10 @@ export class PlaRemote extends LitElement {
 
     const { min, max, step } = this.rangeOf(entity);
     if (value < min || value > max) return { error: `Must be between ${min} and ${max}${suffix}` };
-    const steps = (value - (Number.isFinite(min) ? min : 0)) / step;
-    if (Math.abs(steps - Math.round(steps)) > 1e-9) {
-      return { error: step === 1 ? "Must be a whole number" : `Must be a multiple of ${step}${suffix}` };
-    }
-    return { value };
+    const base = Number.isFinite(min) ? min : 0;
+    const steps = (value - base) / step;
+    if (Math.abs(steps - Math.round(steps)) <= 1e-9) return { value, rounded: false };
+    return { value: Math.min(max, base + Math.round(steps) * step), rounded: true };
   }
 
   /** Sends an action to the device, resolving true on success */
@@ -276,18 +280,18 @@ export class PlaRemote extends LitElement {
     try {
       const res = await fetch(url, { method: "POST", credentials: "same-origin" });
       if (res.ok) return true;
-      this.showError(`${entity.name}: error code ${res.status}`);
+      this.showToast(`${entity.name}: error code ${res.status}`);
     } catch (err) {
       console.error("PLAF109 remote: request failed", url, err);
-      this.showError(`${entity.name}: request failed`);
+      this.showToast(`${entity.name}: request failed`);
     }
     return false;
   }
 
-  private showError(message: string): void {
-    this.errorText = message;
-    if (this.errorTimer) clearTimeout(this.errorTimer);
-    this.errorTimer = setTimeout(() => (this.errorText = null), 5000);
+  private showToast(text: string, info = false): void {
+    this.toast = { text, info };
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+    this.toastTimer = setTimeout(() => (this.toast = null), 5000);
   }
 
   /** Subscribes to the device's state and ping events */
@@ -417,7 +421,7 @@ export class PlaRemote extends LitElement {
   }
 
   /**
-   * Saves a typed number
+   * Saves a typed number, rounded to the step
    * @param zeroText typed in place of 0, e.g. "Off"
    */
   async onNumberChange(e: Event, entity: Entity, suffix: string, zeroText?: string): Promise<void> {
@@ -426,13 +430,17 @@ export class PlaRemote extends LitElement {
     if (!this.editingNumbers.has(id) || input.value.trim() === "") return; // blur puts the current value back
     const result = this.parseNumberInput(entity, input.value, suffix, zeroText);
     if ("error" in result) {
-      this.showError(result.error);
+      this.showToast(result.error);
       return;
+    }
+    const step = this.stepOf(entity);
+    if (result.rounded) {
+      const stepText = formatNumber(step, step, suffix);
+      this.showToast(`Rounded to ${formatNumber(result.value, step, suffix, zeroText)}, ${entity.name} is set in steps of ${stepText}`, true);
     }
     if (result.value === this.num(entity)) return;
 
     // keep showing the typed value until the device's state event replaces it
-    const step = this.stepOf(entity);
     this.savingNumbers.add(id);
     input.value = formatNumber(result.value, step, suffix, zeroText);
     const ok = await this.post(entity, "set", "value=" + result.value.toFixed(decimalsOf(step)));

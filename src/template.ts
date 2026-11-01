@@ -7,6 +7,7 @@ import feedingTimeIcon from "@material-symbols/svg-400/outlined/cookie.svg";
 import lidIcon from "@material-symbols/svg-400/outlined/earbud_case.svg";
 import errorIcon from "@material-symbols/svg-400/outlined/error.svg";
 import helpIcon from "@material-symbols/svg-400/outlined/help.svg";
+import infoIcon from "@material-symbols/svg-400/outlined/info.svg";
 import targetIcon from "@material-symbols/svg-400/outlined/nest_farsight_cool.svg";
 import chimeIntervalIcon from "@material-symbols/svg-400/outlined/notification_settings.svg";
 import chimeIcon from "@material-symbols/svg-400/outlined/notifications.svg";
@@ -166,12 +167,14 @@ export function renderTemplate(remote: PlaRemote): TemplateResult {
     ${banner(!remote.onBattery, "warn", powerOffIcon, "Running on battery", "Cooling is paused until AC power returns.")}
 
     <div
-      class="fixed inset-x-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-50 mx-auto max-w-md flex items-center gap-3 bg-danger-soft text-danger rounded-md px-3.5 py-2.5 text-[13px] font-semibold shadow transition-[opacity,translate] duration-200 starting:opacity-0 starting:translate-y-2"
-      role="alert"
-      ?hidden=${!remote.errorText}
+      class="fixed inset-x-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-50 mx-auto max-w-md flex items-center gap-3 ${remote.toast?.info
+        ? "bg-accent-soft text-accent-dark"
+        : "bg-danger-soft text-danger"} rounded-md px-3.5 py-2.5 text-[13px] font-semibold shadow transition-[opacity,translate] duration-200 starting:opacity-0 starting:translate-y-2"
+      role=${remote.toast?.info ? "status" : "alert"}
+      ?hidden=${!remote.toast}
     >
-      ${msIcon(errorIcon, "w-5 h-5")}
-      <span>${remote.errorText}</span>
+      ${msIcon(remote.toast?.info ? infoIcon : errorIcon, "w-5 h-5")}
+      <span>${remote.toast?.text}</span>
     </div>
 
     <div class="card">
