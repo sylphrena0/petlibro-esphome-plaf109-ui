@@ -113,9 +113,8 @@ interface NextMeal {
 
 export class PlaRemote extends LitElement {
   private editingMealTime: Record<number, boolean> = {};
-  // entity ids of number inputs being typed in, or whose typed value is still being sent
-  private editingNumbers = new Set<string>();
-  private savingNumbers = new Set<string>();
+  private editing?: string; // entity id of the focused number input
+  private confirmed: Record<string, EntityState> = {}; // last state from the device, without optimistic values
   private eventSource?: EventSource;
   private nextMealTimer?: ReturnType<typeof setInterval>;
   private uptimeTimer?: ReturnType<typeof setInterval>;
@@ -153,8 +152,7 @@ export class PlaRemote extends LitElement {
     this.toast = null;
     this.setConnected(false);
     this.editingMealTime = {};
-    this.editingNumbers.clear();
-    this.savingNumbers.clear();
+    this.editing = undefined;
   }
 
   override render(): TemplateResult {
@@ -330,7 +328,9 @@ export class PlaRemote extends LitElement {
         return;
       }
       if (!state?.id) return;
-      this.store = { ...this.store, [state.id]: { ...this.store[state.id], ...state } };
+      const merged = { ...this.confirmed[state.id], ...state };
+      this.confirmed[state.id] = merged;
+      this.store = { ...this.store, [state.id]: merged };
       ENTITIES.feedTimes.forEach((meal, idx) => {
         if (entityId(meal) === state.id) this.syncMealTime(idx, meal);
       });
@@ -421,37 +421,59 @@ export class PlaRemote extends LitElement {
     if (!Number.isFinite(curVal)) return;
     const { min, max, step } = this.rangeOf(entity);
     const next = Math.min(max, Math.max(min, curVal + direction * step));
-    void this.post(entity, "set", "value=" + next.toFixed(decimalsOf(step)));
+    void this.setValue(entity, next.toFixed(decimalsOf(step)));
   }
 
-  isEditingNumber(entity: Entity): boolean {
+  /** Updates the store immediately, reverting if the device rejects it */
+  private async setValue(entity: Entity, value: string): Promise<void> {
     const id = entityId(entity);
-    return this.editingNumbers.has(id) || this.savingNumbers.has(id);
+    const optimistic = { ...this.store[id], id, value, state: value };
+    this.store = { ...this.store, [id]: optimistic };
+    const ok = await this.post(entity, "set", "value=" + encodeURIComponent(value));
+    if (ok || this.store[id] !== optimistic) return;
+    const store = { ...this.store };
+    const confirmed = this.confirmed[id];
+    if (confirmed) store[id] = confirmed;
+    else delete store[id];
+    this.store = store;
+  }
+
+  isEditing(entity: Entity): boolean {
+    return this.editing === entityId(entity);
+  }
+
+  onEditFocus(entity: Entity): void {
+    this.editing = entityId(entity);
+  }
+
+  onEditKeydown(e: KeyboardEvent): void {
+    const input = e.target as HTMLInputElement;
+    if (e.key === "Escape") this.editing = undefined; // makes the change handler skip it
+    if (e.key === "Enter" || e.key === "Escape") input.blur();
+  }
+
+  /** Restores the formatted stored value */
+  onEditBlur(): void {
+    this.editing = undefined;
+    this.requestUpdate();
   }
 
   /** Shows the bare number while typing */
   onNumberFocus(e: Event, entity: Entity): void {
     const input = e.target as HTMLInputElement;
-    this.editingNumbers.add(entityId(entity));
+    this.onEditFocus(entity);
     const n = this.num(entity);
     input.value = Number.isFinite(n) ? n.toFixed(decimalsOf(this.stepOf(entity))) : "";
     input.select();
-  }
-
-  onNumberKeydown(e: KeyboardEvent, entity: Entity): void {
-    const input = e.target as HTMLInputElement;
-    if (e.key === "Escape") this.editingNumbers.delete(entityId(entity)); // makes the change handler skip it
-    if (e.key === "Enter" || e.key === "Escape") input.blur();
   }
 
   /**
    * Saves a typed number, rounded to the step
    * @param zeroText typed in place of 0, e.g. "Off"
    */
-  async onNumberChange(e: Event, entity: Entity, unit: string, zeroText?: string): Promise<void> {
+  onNumberChange(e: Event, entity: Entity, unit: string, zeroText?: string): void {
     const input = e.target as HTMLInputElement;
-    const id = entityId(entity);
-    if (!this.editingNumbers.has(id) || input.value.trim() === "") return; // blur puts the current value back
+    if (!this.isEditing(entity) || input.value.trim() === "") return; // blur puts the current value back
     const result = this.parseNumberInput(entity, input.value, unit, zeroText);
     if ("error" in result) {
       this.showToast(result.error);
@@ -462,20 +484,7 @@ export class PlaRemote extends LitElement {
       const stepText = formatNumber(step, step, unit);
       this.showToast(`Rounded to ${formatNumber(result.value, step, unit, zeroText)}, ${entity.name} is set in steps of ${stepText}`, true);
     }
-    if (result.value === this.num(entity)) return;
-
-    // keep showing the typed value until the device's state event replaces it
-    this.savingNumbers.add(id);
-    input.value = formatNumber(result.value, step, unit, zeroText);
-    const ok = await this.post(entity, "set", "value=" + result.value.toFixed(decimalsOf(step)));
-    this.savingNumbers.delete(id);
-    if (!ok) input.value = this.numText(entity, unit, zeroText);
-  }
-
-  onNumberBlur(e: Event, entity: Entity, unit: string, zeroText?: string): void {
-    const id = entityId(entity);
-    this.editingNumbers.delete(id);
-    if (!this.savingNumbers.has(id)) (e.target as HTMLInputElement).value = this.numText(entity, unit, zeroText);
+    if (result.value !== this.num(entity)) void this.setValue(entity, result.value.toFixed(decimalsOf(step)));
   }
 
   onMealTimeFocus(idx: number): void {

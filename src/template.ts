@@ -110,8 +110,8 @@ interface NumberStepperOptions {
 function numberStepper(remote: PlaRemote, entity: Entity, unit: string, { zeroText, editable = false, label }: NumberStepperOptions = {}): TemplateResult {
   const stepBtn = "w-7.5 h-7.5 rounded-full border-0 bg-tray text-accent-dark text-base font-extrabold cursor-pointer active:scale-90";
   const text = remote.numText(entity, unit, zeroText);
-  // leave the input alone while typing or saving so a state event doesn't overwrite it
-  const inputValue = remote.isEditingNumber(entity) ? noChange : live(text);
+  // leave the input alone while typing so a state event doesn't overwrite it
+  const inputValue = remote.isEditing(entity) ? noChange : live(text);
   const value = editable
     ? html`<input
         type="text"
@@ -122,9 +122,9 @@ function numberStepper(remote: PlaRemote, entity: Entity, unit: string, { zeroTe
         class="w-24 rounded-sm border-0 bg-black/20 px-1 py-1 text-center text-[15px] font-extrabold text-inherit font-[inherit] cursor-text outline-none focus:bg-tray focus:ring-2 focus:ring-accent"
         .value=${inputValue}
         @focus=${(e: Event) => remote.onNumberFocus(e, entity)}
-        @keydown=${(e: KeyboardEvent) => remote.onNumberKeydown(e, entity)}
+        @keydown=${(e: KeyboardEvent) => remote.onEditKeydown(e)}
         @change=${(e: Event) => remote.onNumberChange(e, entity, unit, zeroText)}
-        @blur=${(e: Event) => remote.onNumberBlur(e, entity, unit, zeroText)}
+        @blur=${() => remote.onEditBlur()}
       />`
     : html`<span class="min-w-11 text-center font-extrabold text-[15px]">${text}</span>`;
   return html`
