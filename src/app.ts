@@ -374,21 +374,64 @@ export class PlaRemote extends LitElement {
     return this.str(meal)?.slice(0, 5) ?? "";
   }
 
-  /** Error if `minutes` isn't between the device's nearest set meals before and after meal `index` */
+  /**
+   * Error if a new meal time is out of order with its neighboring meals
+   * @param index the meal being set
+   * @param minutes its new time, in minutes since midnight
+   */
   private mealOrderError(index: number, minutes: number): string | null {
     const meals = ENTITIES.feedTimes.map((meal: Entity) => {
       const value = this.confirmed[entityId(meal)]?.value;
       return { name: meal.name, minutes: parseTimeToMinutes(typeof value === "string" ? value : undefined) };
     });
-    const own = meals[index];
-    const name = own?.name;
-    // a neighbour still at this meal's time was never set, e.g. all at 00:00 after flashing
-    const isSet = (m: { minutes: number | null }) => m.minutes !== null && m.minutes !== own?.minutes;
+    const name = meals[index]?.name;
+    // a neighbor still at this meal's time was never set, e.g. all at 00:00 after flashing
+    const isSet = (m: { minutes: number | null }) => m.minutes !== null && m.minutes !== meals[index]?.minutes;
     const before = meals.slice(0, index).reverse().find(isSet);
     const after = meals.slice(index + 1).find(isSet);
     if (before && minutes <= (before.minutes ?? -1)) return `${name} must be after ${before.name}`;
     if (after && minutes >= (after.minutes ?? 24 * 60)) return `${name} must be before ${after.name}`;
     return null;
+  }
+
+  /**
+   * Whether any scheduled meal starts too soon after the previous one, wrapping from Meal Three to Meal One
+   * @param gap minimum minutes between meal starts
+   */
+  private mealsOverlap(gap: number): boolean {
+    if (!this.isOn(ENTITIES.schedule)) return false;
+    const starts = ENTITIES.feedTimes.map((meal) => parseTimeToMinutes(this.str(meal)));
+    return starts.some((start, i) => {
+      const next = starts[(i + 1) % starts.length];
+      return start !== null && next != null && (next - start + 24 * 60) % (24 * 60) < gap;
+    });
+  }
+
+  private get feedingMinutes(): number {
+    return this.num(ENTITIES.minimumFeedingTime) || 0;
+  }
+
+  /**
+   * Error text when the feeding time alone runs into the next meal
+   * @returns null when no meals overlap
+   */
+  get mealOverlapError(): string | null {
+    if (!this.mealsOverlap(this.feedingMinutes)) return null;
+    return "Meal(s) are less than the feeding time apart, so this schedule will cause a meal will be skipped.";
+  }
+
+  /**
+   * Warning text when a meal could run into the next meal by waiting out the arrival timeout
+   * @returns null when no meals could overlap, or when the error is already shown
+   */
+  get mealOverlapWarning(): string | null {
+    if (this.mealOverlapError) return null;
+    if (!this.mealsOverlap((this.num(ENTITIES.arrivalTimeout) || 0) + this.feedingMinutes)) return null;
+    return `Meals are less than the arrival timeout plus feeding time apart, so a meal might be skipped.`;
+  }
+
+  get longArrivalTimeout(): boolean {
+    return this.num(ENTITIES.arrivalTimeout) > 4 * 60;
   }
 
   toggleSettingsHelp(): void {

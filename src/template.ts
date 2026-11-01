@@ -6,7 +6,9 @@ import batteryIcon from "@material-symbols/svg-400/outlined/battery_full.svg";
 import feedingTimeIcon from "@material-symbols/svg-400/outlined/cookie.svg";
 import lidIcon from "@material-symbols/svg-400/outlined/earbud_case.svg";
 import errorIcon from "@material-symbols/svg-400/outlined/error.svg";
+import mealOverlapIcon from "@material-symbols/svg-400/outlined/event_busy.svg";
 import helpIcon from "@material-symbols/svg-400/outlined/help.svg";
+import longTimeoutIcon from "@material-symbols/svg-400/outlined/hourglass_bottom.svg";
 import infoIcon from "@material-symbols/svg-400/outlined/info.svg";
 import targetIcon from "@material-symbols/svg-400/outlined/nest_farsight_cool.svg";
 import chimeIntervalIcon from "@material-symbols/svg-400/outlined/notification_settings.svg";
@@ -165,6 +167,27 @@ export function renderTemplate(remote: PlaRemote): TemplateResult {
       { label: "Clear", onClick: () => remote.pressButton(ENTITIES.clearMissedMeal) },
     )}
     ${banner(!remote.onBattery, "warn", powerOffIcon, "Running on battery", "Cooling is paused until AC power returns.")}
+    ${banner(
+      remote.mealOverlapError === null,
+      "danger",
+      mealOverlapIcon,
+      "Scheduled meals overlap",
+      remote.mealOverlapError ?? "",
+    )}
+    ${banner(
+      remote.mealOverlapWarning === null,
+      "warn",
+      mealOverlapIcon,
+      "Meals may overlap",
+      remote.mealOverlapWarning ?? "",
+    )}
+    ${banner(
+      !remote.longArrivalTimeout,
+      "warn",
+      longTimeoutIcon,
+      "Long arrival timeout",
+      "Food may sit out for hours if your pet doesn't come.",
+    )}
 
     <div
       class="fixed inset-x-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-50 mx-auto max-w-md flex items-center gap-3 ${remote.toast?.info
