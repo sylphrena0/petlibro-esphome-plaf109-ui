@@ -189,11 +189,13 @@ export function renderTemplate(remote: PlaRemote): TemplateResult {
       "Food may sit out for hours if your pet doesn't come.",
     )}
 
+    <div class="sr-only" role="status">${remote.toast?.info ? remote.toast.text : ""}</div>
+    <div class="sr-only" role="alert">${remote.toast && !remote.toast.info ? remote.toast.text : ""}</div>
     <div
       class="fixed inset-x-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-50 mx-auto max-w-md flex items-center gap-3 ${remote.toast?.info
         ? "bg-accent-soft text-accent-dark"
         : "bg-danger-soft text-danger"} rounded-md px-3.5 py-2.5 text-[13px] font-semibold shadow transition-[opacity,translate] duration-200 starting:opacity-0 starting:translate-y-2"
-      role=${remote.toast?.info ? "status" : "alert"}
+      aria-hidden="true"
       ?hidden=${!remote.toast}
     >
       ${msIcon(remote.toast?.info ? infoIcon : errorIcon, "w-5 h-5")}
