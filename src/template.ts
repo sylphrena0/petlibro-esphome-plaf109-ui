@@ -317,8 +317,8 @@ export function renderTemplate(remote: PlaRemote): TemplateResult {
         remote,
         arrivalTimeoutIcon,
         "Arrival Timeout",
-        "How long to wait for your pet once a meal is served. If they don't show up, the lid will close, and the plate won't rotate. Turn off to keep the lid open until your pet arrives.",
-        numberStepper(remote, ENTITIES.arrivalTimeout, " min", { zeroText: "Off", editable: true, label: "Arrival Timeout" }),
+        "How long to wait for your pet once a meal is served. If they don't show up, the lid will close, and the plate won't rotate.",
+        numberStepper(remote, ENTITIES.arrivalTimeout, " min", { editable: true, label: "Arrival Timeout" }),
       )}
       ${settingRow(
         remote,
